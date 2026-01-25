@@ -108,7 +108,7 @@ export async function getProdutosDisponiveisParaResponsavel(): Promise<ProdutoCo
     // 3. Buscar dados dos alunos
     const { data: alunos } = await supabase
       .from('alunos')
-      .select('id, empresa_id, unidade_id, turma_id')
+      .select('id, nome, empresa_id, unidade_id, turma_id')
       .in('id', alunoIds)
       .eq('situacao', 'ATIVO')
 
@@ -350,14 +350,19 @@ export async function getProdutosDisponiveis(alunoId: string): Promise<ProdutoCo
   }
 
   const { data: responsavel } = await supabase
-    .from('responsaveis')
-    .select('id')
-    .eq('auth_user_id', user.id)
-    .single()
+  .from('usuarios')
+  .select('id, ativo')
+  .eq('auth_user_id', user.id)
+  .maybeSingle()
 
-  if (!responsavel) {
-    throw new Error('Responsável não encontrado')
-  }
+if (!responsavel) {
+  throw new Error('Responsável não encontrado')
+}
+
+if (!responsavel.ativo) {
+  throw new Error('Sua conta está inativa. Entre em contato com a administração.')
+}
+
 
   const { data: vinculo } = await supabase
     .from('usuario_aluno')
