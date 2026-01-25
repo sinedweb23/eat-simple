@@ -2,7 +2,7 @@ import nodemailer from 'nodemailer'
 import { obterConfiguracaoSMTP } from '@/app/actions/configuracoes'
 
 /**
- * Criar transporter SMTP baseado nas configurações
+ * Criar transporter SMTP baseado nas configurações.
  */
 async function criarTransporter() {
   try {
