@@ -10,46 +10,67 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Menu, ShoppingCart, LogOut, Package, User } from 'lucide-react'
 import Link from 'next/link'
 
+type Aparencia = {
+  loja_nome: string
+  loja_logo_url: string
+  loja_favicon_url: string
+}
+
+function normalizarAparencia(raw: any): Aparencia {
+  return {
+    loja_nome: String(raw?.loja_nome ?? ''),
+    loja_logo_url: String(raw?.loja_logo_url ?? ''),
+    loja_favicon_url: String(raw?.loja_favicon_url ?? ''),
+  }
+}
+
 export function LojaHeader() {
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
-  const [config, setConfig] = useState({ loja_nome: '', loja_logo_url: '', loja_favicon_url: '' })
+
+  const [config, setConfig] = useState<Aparencia>({
+    loja_nome: '',
+    loja_logo_url: '',
+    loja_favicon_url: '',
+  })
   const [totalItens, setTotalItens] = useState(0)
   const [loading, setLoading] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [logoFalhou, setLogoFalhou] = useState(false)
 
   useEffect(() => {
     carregarConfig()
     setTotalItens(contarItensCarrinho())
-    
-    // Atualizar contador quando mudar de página
+
     const interval = setInterval(() => {
       setTotalItens(contarItensCarrinho())
     }, 1000)
 
     return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Atualizar favicon se configurado
   useEffect(() => {
-    if (config.loja_favicon_url) {
-      const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement
-      if (link) {
-        link.href = config.loja_favicon_url
-      } else {
-        const newLink = document.createElement('link')
-        newLink.rel = 'icon'
-        newLink.href = config.loja_favicon_url
-        document.head.appendChild(newLink)
-      }
+    const href = (config.loja_favicon_url || '').trim()
+    if (!href) return
+
+    const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement | null
+    if (link) {
+      link.href = href
+      return
     }
+
+    const newLink = document.createElement('link')
+    newLink.rel = 'icon'
+    newLink.href = href
+    document.head.appendChild(newLink)
   }, [config.loja_favicon_url])
 
   async function carregarConfig() {
     try {
       const aparencia = await obterConfiguracaoAparencia()
-      setConfig(aparencia)
+      setConfig(normalizarAparencia(aparencia))
     } catch (err) {
       console.error('Erro ao carregar configurações:', err)
     } finally {
@@ -73,35 +94,30 @@ export function LojaHeader() {
     { href: '/loja/perfil', label: 'Meu Perfil' },
   ]
 
+  const nomeLoja = (config.loja_nome || '').trim() || 'Loja Online'
+  const logoUrl = (config.loja_logo_url || '').trim()
+  const mostrarLogo = !!logoUrl && !logoFalhou
+  const mostrarNome = !mostrarLogo
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
-          {/* Logo e Nome */}
           <Link href="/loja" className="flex items-center gap-3 hover:opacity-80 transition-opacity min-w-0">
-            {config.loja_logo_url ? (
+            {mostrarLogo ? (
               <img
-                src={config.loja_logo_url}
-                alt={config.loja_nome || 'Loja'}
+                src={logoUrl}
+                alt={nomeLoja}
                 className="h-10 w-auto max-w-[200px] object-contain"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none'
-                  // Mostrar nome quando logo falhar
-                  const nomeElement = e.currentTarget.nextElementSibling
-                  if (nomeElement) {
-                    nomeElement.classList.remove('hidden')
-                  }
-                }}
+                onError={() => setLogoFalhou(true)}
               />
             ) : null}
-            {(!config.loja_logo_url || !config.loja_logo_url.trim()) && (
-              <span className="font-semibold text-lg text-foreground whitespace-nowrap">
-                {config.loja_nome || 'Loja Online'}
-              </span>
-            )}
+
+            {mostrarNome ? (
+              <span className="font-semibold text-lg text-foreground whitespace-nowrap">{nomeLoja}</span>
+            ) : null}
           </Link>
 
-          {/* Navegação Desktop */}
           <nav className="hidden md:flex items-center gap-1">
             {navItems.map((item) => (
               <Link
@@ -118,7 +134,6 @@ export function LojaHeader() {
             ))}
           </nav>
 
-          {/* Ações Desktop */}
           <div className="hidden md:flex items-center gap-2">
             <Link href="/loja/carrinho">
               <Button variant="outline" size="sm" className="relative">
@@ -137,10 +152,9 @@ export function LojaHeader() {
             </Button>
           </div>
 
-          {/* Menu Mobile */}
           <div className="flex md:hidden items-center gap-2">
             <Link href="/loja/carrinho">
-              <Button variant="ghost" size="sm" className="p-2 relative">
+              <Button variant="ghost" size="sm" className="p-2 relative" aria-label="Carrinho">
                 <ShoppingCart className="h-5 w-5" />
                 {totalItens > 0 && (
                   <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center">
@@ -149,19 +163,21 @@ export function LojaHeader() {
                 )}
               </Button>
             </Link>
+
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="sm" className="p-2">
+                <Button variant="ghost" size="sm" className="p-2" aria-label="Abrir menu">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
+
               <SheetContent side="right" className="w-80">
                 <div className="flex flex-col h-full">
                   <div className="mb-6">
                     <h2 className="text-lg font-semibold mb-1">Menu</h2>
                     <p className="text-sm text-muted-foreground">Navegação da loja</p>
                   </div>
-                  
+
                   <nav className="flex-1 space-y-1">
                     {navItems.map((item) => (
                       <Link
@@ -183,8 +199,8 @@ export function LojaHeader() {
                   </nav>
 
                   <div className="mt-auto pt-4 border-t">
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       className="w-full justify-start text-destructive hover:text-destructive"
                       onClick={() => {
                         setMobileMenuOpen(false)
