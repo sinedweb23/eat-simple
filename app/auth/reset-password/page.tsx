@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -9,11 +9,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 
-export default function ResetPasswordPage() {
+export default function ResetPasswordClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const supabase = createClient()
-  
+
+  // ✅ evita recriar o supabase client a cada render
+  const supabase = useMemo(() => createClient(), [])
+
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -31,30 +33,33 @@ export default function ResetPasswordPage() {
       const refreshToken = hashParams.get('refresh_token')
       const typeFromHash = hashParams.get('type')
       const hashToken = hashParams.get('token')
-      
+
       if (accessToken && refreshToken) {
         console.log('✅ Tokens encontrados no hash, criando sessão...')
-        supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        }).then(({ data: { session }, error: sessionError }) => {
-          if (sessionError) {
-            console.error('❌ Erro ao criar sessão a partir do hash:', sessionError)
-            setError('Erro ao processar link de recuperação. Solicite um novo link.')
-            return
-          }
-          
-          if (session) {
-            console.log('✅ Sessão criada a partir do hash')
-            setToken('session_active')
-            // Limpar hash da URL
-            window.history.replaceState({}, '', window.location.pathname)
-            return
-          }
-        })
+        supabase.auth
+          .setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          .then(({ data: { session }, error: sessionError }) => {
+            if (sessionError) {
+              console.error('❌ Erro ao criar sessão a partir do hash:', sessionError)
+              setError('Erro ao processar link de recuperação. Solicite um novo link.')
+              return
+            }
+
+            if (session) {
+              console.log('✅ Sessão criada a partir do hash')
+              setToken('session_active')
+              // Limpar hash da URL
+              window.history.replaceState({}, '', window.location.pathname)
+              return
+            }
+          })
+
         return
       }
-      
+
       if (hashToken && typeFromHash === 'recovery') {
         console.log('🔑 Token encontrado no hash da URL')
         setToken(hashToken)
@@ -65,7 +70,7 @@ export default function ResetPasswordPage() {
     }
 
     // Verificar se há sessão ativa (token já foi processado pelo Supabase)
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         // Se tem sessão, o token já foi processado pelo Supabase
         console.log('✅ Sessão encontrada, token já foi processado')
@@ -75,7 +80,7 @@ export default function ResetPasswordPage() {
 
       // Se não tem sessão, verificar se há token na URL
       const tokenParam = searchParams.get('token')
-      
+
       if (tokenParam) {
         console.log('🔑 Token encontrado na query string')
         setToken(tokenParam)
@@ -105,13 +110,15 @@ export default function ResetPasswordPage() {
 
     try {
       // Verificar se há sessão ativa primeiro (token já foi processado pelo Supabase)
-      const { data: { session } } = await supabase.auth.getSession()
-      
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
       if (session) {
         // Se já tem sessão (token foi processado pelo Supabase), apenas atualizar senha
         console.log('✅ Sessão encontrada, atualizando senha...')
         const { error: updateError } = await supabase.auth.updateUser({
-          password: password
+          password: password,
         })
 
         if (updateError) {
@@ -134,21 +141,27 @@ export default function ResetPasswordPage() {
 
       console.log('🔍 Verificando token de recuperação...')
       console.log('🔑 Token:', token.substring(0, 20) + '...')
-      
+
       // O token precisa ser verificado via verifyOtp
-      const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+      const { error: verifyError } = await supabase.auth.verifyOtp({
         token_hash: token,
         type: 'recovery',
       })
 
       if (verifyError) {
         console.error('❌ Erro ao verificar token:', verifyError)
-        
-        // Se o erro for de token inválido/expirado, dar mensagem clara
-        if (verifyError.message.includes('token') || verifyError.message.includes('expired') || verifyError.message.includes('invalid') || verifyError.message.includes('has already been used')) {
+
+        const msg = (verifyError.message || '').toLowerCase()
+        if (
+          msg.includes('token') ||
+          msg.includes('expired') ||
+          msg.includes('invalid') ||
+          msg.includes('already been used') ||
+          msg.includes('has already been used')
+        ) {
           throw new Error('Token inválido ou expirado. Solicite um novo link em "Primeiro Acesso".')
         }
-        
+
         throw verifyError
       }
 
@@ -156,7 +169,7 @@ export default function ResetPasswordPage() {
 
       // Após verificar, atualizar senha
       const { error: updateError } = await supabase.auth.updateUser({
-        password: password
+        password: password,
       })
 
       if (updateError) {
@@ -185,9 +198,7 @@ export default function ResetPasswordPage() {
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>Verificando...</CardTitle>
-            <CardDescription>
-              Aguarde enquanto verificamos seu link.
-            </CardDescription>
+            <CardDescription>Aguarde enquanto verificamos seu link.</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -201,9 +212,7 @@ export default function ResetPasswordPage() {
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>Token Inválido</CardTitle>
-            <CardDescription>
-              {error || 'O link de recuperação é inválido ou expirou.'}
-            </CardDescription>
+            <CardDescription>{error || 'O link de recuperação é inválido ou expirou.'}</CardDescription>
           </CardHeader>
           <CardContent>
             <Link href="/primeiro-acesso">
@@ -221,14 +230,10 @@ export default function ResetPasswordPage() {
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>Senha Criada com Sucesso!</CardTitle>
-            <CardDescription>
-              Redirecionando para o login...
-            </CardDescription>
+            <CardDescription>Redirecionando para o login...</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-center text-green-600">
-              ✅ Sua senha foi criada com sucesso!
-            </div>
+            <div className="text-center text-green-600">✅ Sua senha foi criada com sucesso!</div>
           </CardContent>
         </Card>
       </div>
@@ -240,9 +245,7 @@ export default function ResetPasswordPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Criar Senha</CardTitle>
-          <CardDescription>
-            Defina sua senha de acesso ao portal
-          </CardDescription>
+          <CardDescription>Defina sua senha de acesso ao portal</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleResetPassword} className="space-y-4">
