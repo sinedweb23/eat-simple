@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
-import type { ProdutoComDisponibilidade, ProdutoCompleto, KitItem } from '@/lib/types/database'
+import type { ProdutoComDisponibilidade, ProdutoCompleto, KitItem, Aluno } from '@/lib/types/database'
 
 const alunoIdSchema = z.string().uuid().optional()
 
@@ -112,12 +112,14 @@ export async function getProdutosDisponiveisParaResponsavel(): Promise<ProdutoCo
       .in('id', alunoIds)
       .eq('situacao', 'ATIVO')
 
-    if (!alunos || alunos.length === 0) {
-      return []
-    }
+      const alunosTyped = (alunos || []) as Pick<Aluno, 'id' | 'nome' | 'empresa_id' | 'unidade_id' | 'turma_id'>[]
 
+      if (alunosTyped.length === 0) {
+        return []
+      }
+      
     // Buscar turmas e segmentos separadamente
-    const turmasIds = alunos.map(a => a.turma_id).filter(Boolean) as string[]
+    const turmasIds = alunosTyped.map(a => a.turma_id).filter(Boolean) as string[]
     let turmas: any[] = []
     
     if (turmasIds.length > 0) {
@@ -133,12 +135,13 @@ export async function getProdutosDisponiveisParaResponsavel(): Promise<ProdutoCo
     )
 
     // 4. Coletar empresas e unidades únicas
-    const empresasIds = [...new Set(alunos.map(a => a.empresa_id))]
-    const unidadesIds = alunos.map(a => a.unidade_id).filter(Boolean) as string[]
-    const alunosSemUnidade = alunos.some(a => !a.unidade_id) // Verificar se algum aluno não tem unidade
-    const segmentos = alunos
+    const empresasIds = [...new Set(alunosTyped.map(a => a.empresa_id))]
+    const unidadesIds = alunosTyped.map(a => a.unidade_id).filter(Boolean) as string[]
+    const alunosSemUnidade = alunosTyped.some(a => !a.unidade_id)
+    const segmentos = alunosTyped
       .map(a => turmaSegmentoMap.get(a.turma_id || ''))
       .filter(Boolean) as string[]
+    
 
     // 5. Buscar produtos das empresas/unidades dos alunos
     // Buscar produtos da empresa (sem filtro de unidade primeiro, depois filtrar no código)
@@ -259,7 +262,7 @@ export async function getProdutosDisponiveisParaResponsavel(): Promise<ProdutoCo
         console.log(`[getProdutosDisponiveisParaResponsavel] Segmentos dos alunos:`, segmentos)
         console.log(`[getProdutosDisponiveisParaResponsavel] Turmas dos alunos:`, turmasIds)
         
-        for (const aluno of alunos) {
+        for (const aluno of alunosTyped) {
           for (const disp of disponibilidadesProduto) {
             // Pular "TODOS" já que já foi verificado acima
             if (disp.tipo === 'TODOS') continue
