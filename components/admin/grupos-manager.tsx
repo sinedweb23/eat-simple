@@ -14,8 +14,20 @@ interface GruposManagerProps {
   onUpdate: () => void
 }
 
+type GrupoCreatePayload = {
+  ativo: boolean
+  nome: string
+  ordem: number
+  descricao?: string
+}
+
 export function GruposManager({ empresaId, grupos, onUpdate }: GruposManagerProps) {
-  const [novoGrupo, setNovoGrupo] = useState({ nome: '', descricao: '', ordem: 0 })
+  const [novoGrupo, setNovoGrupo] = useState<GrupoCreatePayload>({
+    ativo: true,
+    nome: '',
+    descricao: '',
+    ordem: 0,
+  })
   const [loading, setLoading] = useState(false)
 
   async function handleCriar() {
@@ -23,8 +35,15 @@ export function GruposManager({ empresaId, grupos, onUpdate }: GruposManagerProp
 
     setLoading(true)
     try {
-      await criarGrupoProduto(empresaId, novoGrupo)
-      setNovoGrupo({ nome: '', descricao: '', ordem: 0 })
+      const payload: GrupoCreatePayload = {
+        ativo: true,
+        nome: novoGrupo.nome.trim(),
+        ordem: Number.isFinite(novoGrupo.ordem) ? novoGrupo.ordem : 0,
+        descricao: (novoGrupo.descricao || '').trim() ? (novoGrupo.descricao || '').trim() : undefined,
+      }
+
+      await criarGrupoProduto(empresaId, payload)
+      setNovoGrupo({ ativo: true, nome: '', descricao: '', ordem: 0 })
       onUpdate()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Erro ao criar grupo')
@@ -40,7 +59,6 @@ export function GruposManager({ empresaId, grupos, onUpdate }: GruposManagerProp
         <CardDescription>Agrupe produtos relacionados</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Formulário de novo grupo */}
         <div className="grid grid-cols-4 gap-4 p-4 border rounded-lg">
           <div>
             <Label>Nome *</Label>
@@ -53,7 +71,7 @@ export function GruposManager({ empresaId, grupos, onUpdate }: GruposManagerProp
           <div>
             <Label>Descrição</Label>
             <Input
-              value={novoGrupo.descricao}
+              value={novoGrupo.descricao || ''}
               onChange={(e) => setNovoGrupo({ ...novoGrupo, descricao: e.target.value })}
               placeholder="Descrição"
             />
@@ -73,7 +91,6 @@ export function GruposManager({ empresaId, grupos, onUpdate }: GruposManagerProp
           </div>
         </div>
 
-        {/* Lista de grupos */}
         <div className="space-y-2">
           {grupos.map((grupo) => (
             <div key={grupo.id} className="flex items-center justify-between p-3 border rounded-lg">

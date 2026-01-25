@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { criarCategoria, atualizarCategoria, deletarCategoria } from '@/app/actions/produtos-admin'
 import type { Categoria } from '@/lib/types/database'
 
@@ -15,8 +14,20 @@ interface CategoriasManagerProps {
   onUpdate: () => void
 }
 
+type CategoriaCreatePayload = {
+  ativo: boolean
+  nome: string
+  ordem: number
+  descricao?: string
+}
+
 export function CategoriasManager({ empresaId, categorias, onUpdate }: CategoriasManagerProps) {
-  const [novaCategoria, setNovaCategoria] = useState({ nome: '', descricao: '', ordem: 0 })
+  const [novaCategoria, setNovaCategoria] = useState<CategoriaCreatePayload>({
+    ativo: true,
+    nome: '',
+    descricao: '',
+    ordem: 0,
+  })
   const [editando, setEditando] = useState<Categoria | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -25,8 +36,15 @@ export function CategoriasManager({ empresaId, categorias, onUpdate }: Categoria
 
     setLoading(true)
     try {
-      await criarCategoria(empresaId, novaCategoria)
-      setNovaCategoria({ nome: '', descricao: '', ordem: 0 })
+      const payload: CategoriaCreatePayload = {
+        ativo: true,
+        nome: novaCategoria.nome.trim(),
+        ordem: Number.isFinite(novaCategoria.ordem) ? novaCategoria.ordem : 0,
+        descricao: (novaCategoria.descricao || '').trim() ? (novaCategoria.descricao || '').trim() : undefined,
+      }
+
+      await criarCategoria(empresaId, payload)
+      setNovaCategoria({ ativo: true, nome: '', descricao: '', ordem: 0 })
       onUpdate()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Erro ao criar categoria')
@@ -41,8 +59,9 @@ export function CategoriasManager({ empresaId, categorias, onUpdate }: Categoria
     setLoading(true)
     try {
       await atualizarCategoria(editando.id, {
+        ativo: editando.ativo ?? true,
         nome: editando.nome,
-        descricao: editando.descricao || '',
+        descricao: (editando.descricao || '').trim() ? (editando.descricao || '').trim() : undefined,
         ordem: editando.ordem,
       })
       setEditando(null)
@@ -75,7 +94,6 @@ export function CategoriasManager({ empresaId, categorias, onUpdate }: Categoria
         <CardDescription>Gerencie as categorias de produtos</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Formulário de nova categoria */}
         <div className="grid grid-cols-4 gap-4 p-4 border rounded-lg">
           <div>
             <Label>Nome *</Label>
@@ -88,7 +106,7 @@ export function CategoriasManager({ empresaId, categorias, onUpdate }: Categoria
           <div>
             <Label>Descrição</Label>
             <Input
-              value={novaCategoria.descricao}
+              value={novaCategoria.descricao || ''}
               onChange={(e) => setNovaCategoria({ ...novaCategoria, descricao: e.target.value })}
               placeholder="Descrição"
             />
@@ -108,16 +126,12 @@ export function CategoriasManager({ empresaId, categorias, onUpdate }: Categoria
           </div>
         </div>
 
-        {/* Lista de categorias */}
         <div className="space-y-2">
           {categorias.map((cat) => (
             <div key={cat.id} className="flex items-center justify-between p-3 border rounded-lg">
               {editando?.id === cat.id ? (
                 <div className="flex-1 grid grid-cols-4 gap-4">
-                  <Input
-                    value={editando.nome}
-                    onChange={(e) => setEditando({ ...editando, nome: e.target.value })}
-                  />
+                  <Input value={editando.nome} onChange={(e) => setEditando({ ...editando, nome: e.target.value })} />
                   <Input
                     value={editando.descricao || ''}
                     onChange={(e) => setEditando({ ...editando, descricao: e.target.value })}

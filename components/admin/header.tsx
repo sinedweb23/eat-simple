@@ -7,36 +7,44 @@ import { obterConfiguracaoAparencia } from '@/app/actions/configuracoes'
 import { temFilhosAtivos } from '@/app/actions/responsavel'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
-import { Menu, X, LogOut, Store } from 'lucide-react'
+import { Menu, LogOut, Store } from 'lucide-react'
 import Link from 'next/link'
+
+type Aparencia = {
+  loja_nome?: string | null
+  loja_logo_url?: string | null
+  loja_favicon_url?: string | null
+}
 
 export function AdminHeader() {
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
-  const [config, setConfig] = useState({ loja_nome: '', loja_logo_url: '', loja_favicon_url: '' })
+
+  const [config, setConfig] = useState<Aparencia>({
+    loja_nome: '',
+    loja_logo_url: '',
+    loja_favicon_url: '',
+  })
   const [temFilhos, setTemFilhos] = useState(false)
-  const [loading, setLoading] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
-    carregarConfig()
-  }, [])
-
-  async function carregarConfig() {
-    try {
-      const [aparencia, filhos] = await Promise.all([
-        obterConfiguracaoAparencia(),
-        temFilhosAtivos(),
-      ])
-      setConfig(aparencia)
-      setTemFilhos(filhos)
-    } catch (err) {
-      console.error('Erro ao carregar configurações:', err)
-    } finally {
-      setLoading(false)
+    let mounted = true
+    ;(async () => {
+      try {
+        const [aparencia, filhos] = await Promise.all([obterConfiguracaoAparencia(), temFilhosAtivos()])
+        if (!mounted) return
+        setConfig((aparencia || {}) as Aparencia)
+        setTemFilhos(!!filhos)
+      } catch (err) {
+        console.error('Erro ao carregar configurações:', err)
+      }
+    })()
+    return () => {
+      mounted = false
     }
-  }
+  }, [])
 
   async function handleLogout() {
     try {
@@ -60,35 +68,33 @@ export function AdminHeader() {
     { href: '/admin/configuracoes', label: 'Configurações' },
   ]
 
+  const nomeLoja = (config.loja_nome || '').trim() || 'Painel Admin'
+  const logoUrl = (config.loja_logo_url || '').trim()
+  const mostrarLogo = !!logoUrl
+  const mostrarNomeSempre = !mostrarLogo
+
+  const [logoFalhou, setLogoFalhou] = useState(false)
+  const mostrarNome = mostrarNomeSempre || logoFalhou
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
-          {/* Logo e Nome */}
           <Link href="/admin" className="flex items-center gap-3 hover:opacity-80 transition-opacity min-w-0">
-            {config.loja_logo_url ? (
+            {mostrarLogo && !logoFalhou ? (
               <img
-                src={config.loja_logo_url}
-                alt={config.loja_nome || 'Admin'}
+                src={logoUrl}
+                alt={nomeLoja}
                 className="h-10 w-auto max-w-[200px] object-contain"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none'
-                  // Mostrar nome quando logo falhar
-                  const nomeElement = e.currentTarget.nextElementSibling
-                  if (nomeElement) {
-                    nomeElement.classList.remove('hidden')
-                  }
-                }}
+                onError={() => setLogoFalhou(true)}
               />
             ) : null}
-            {(!config.loja_logo_url || !config.loja_logo_url.trim()) && (
-              <span className="font-semibold text-lg text-foreground whitespace-nowrap">
-                {config.loja_nome || 'Painel Admin'}
-              </span>
-            )}
+
+            {mostrarNome ? (
+              <span className="font-semibold text-lg text-foreground whitespace-nowrap">{nomeLoja}</span>
+            ) : null}
           </Link>
 
-          {/* Navegação Desktop */}
           <nav className="hidden lg:flex items-center gap-1">
             {navItems.map((item) => (
               <Link
@@ -105,7 +111,6 @@ export function AdminHeader() {
             ))}
           </nav>
 
-          {/* Ações Desktop */}
           <div className="hidden lg:flex items-center gap-2">
             {temFilhos && (
               <Link href="/loja">
@@ -121,28 +126,29 @@ export function AdminHeader() {
             </Button>
           </div>
 
-          {/* Menu Mobile */}
           <div className="flex lg:hidden items-center gap-2">
             {temFilhos && (
               <Link href="/loja">
-                <Button variant="ghost" size="sm" className="p-2">
+                <Button variant="ghost" size="sm" className="p-2" aria-label="Ir para Loja">
                   <Store className="h-5 w-5" />
                 </Button>
               </Link>
             )}
+
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="sm" className="p-2">
+                <Button variant="ghost" size="sm" className="p-2" aria-label="Abrir menu">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
+
               <SheetContent side="left" className="w-80">
                 <div className="flex flex-col h-full">
                   <div className="mb-6">
                     <h2 className="text-lg font-semibold mb-1">Menu</h2>
                     <p className="text-sm text-muted-foreground">Navegação do painel</p>
                   </div>
-                  
+
                   <nav className="flex-1 space-y-1">
                     {navItems.map((item) => (
                       <Link
@@ -169,8 +175,8 @@ export function AdminHeader() {
                         </Button>
                       </Link>
                     )}
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       className="w-full justify-start text-destructive hover:text-destructive"
                       onClick={() => {
                         setMobileMenuOpen(false)
