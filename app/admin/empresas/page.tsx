@@ -6,7 +6,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { listarEmpresas, criarEmpresa, atualizarEmpresa, deletarEmpresa, listarUnidades, criarUnidade, atualizarUnidade, deletarUnidade } from '@/app/actions/empresas'
+import {
+  listarEmpresas,
+  criarEmpresa,
+  atualizarEmpresa,
+  deletarEmpresa,
+  listarUnidades,
+  criarUnidade,
+  atualizarUnidade,
+  deletarUnidade,
+} from '@/app/actions/empresas'
 import Link from 'next/link'
 
 interface Empresa {
@@ -26,22 +35,25 @@ interface Unidade {
   updated_at: string
 }
 
+type UnidadesPorEmpresa = Record<string, Unidade[]>
+
 export default function EmpresasPage() {
   const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
+
   // Modal empresa
   const [showEmpresaModal, setShowEmpresaModal] = useState(false)
   const [empresaEditando, setEmpresaEditando] = useState<Empresa | null>(null)
   const [empresaForm, setEmpresaForm] = useState({ nome: '', cnpj: '' })
-  
+
   // Modal unidade
   const [showUnidadeModal, setShowUnidadeModal] = useState(false)
   const [unidadeEditando, setUnidadeEditando] = useState<Unidade | null>(null)
   const [unidadeForm, setUnidadeForm] = useState({ nome: '', empresa_id: '' })
   const [empresaSelecionada, setEmpresaSelecionada] = useState<Empresa | null>(null)
-  const [unidades, setUnidades] = useState<Unidade[]>([])
+
+  const [unidades, setUnidades] = useState<UnidadesPorEmpresa>({})
 
   useEffect(() => {
     carregarEmpresas()
@@ -64,16 +76,15 @@ export default function EmpresasPage() {
   async function carregarUnidades(empresaId: string) {
     try {
       const dados = await listarUnidades(empresaId)
-      setUnidades(prev => ({ ...prev, [empresaId]: dados }))
+      setUnidades((prev) => ({ ...prev, [empresaId]: dados }))
     } catch (err) {
       console.error('Erro ao carregar unidades:', err)
     }
   }
 
   useEffect(() => {
-    // Carregar unidades de todas as empresas após carregar empresas
     if (empresas.length > 0) {
-      empresas.forEach(empresa => {
+      empresas.forEach((empresa) => {
         carregarUnidades(empresa.id)
       })
     }
@@ -178,9 +189,7 @@ export default function EmpresasPage() {
       <div className="mb-6 flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold mb-2">Empresas e Unidades</h1>
-          <p className="text-muted-foreground">
-            Gerencie empresas e suas unidades
-          </p>
+          <p className="text-muted-foreground">Gerencie empresas e suas unidades</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={handleNovaEmpresa}>Nova Empresa</Button>
@@ -190,11 +199,7 @@ export default function EmpresasPage() {
         </div>
       </div>
 
-      {error && (
-        <div className="mb-4 p-3 bg-destructive/10 text-destructive rounded-md">
-          {error}
-        </div>
-      )}
+      {error && <div className="mb-4 p-3 bg-destructive/10 text-destructive rounded-md">{error}</div>}
 
       <div className="space-y-4">
         {empresas.map((empresa) => (
@@ -203,9 +208,7 @@ export default function EmpresasPage() {
               <div className="flex justify-between items-start">
                 <div>
                   <CardTitle>{empresa.nome}</CardTitle>
-                  {empresa.cnpj && (
-                    <CardDescription>CNPJ: {empresa.cnpj}</CardDescription>
-                  )}
+                  {empresa.cnpj && <CardDescription>CNPJ: {empresa.cnpj}</CardDescription>}
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={() => handleNovaUnidade(empresa)}>
@@ -256,24 +259,16 @@ export default function EmpresasPage() {
         </Card>
       )}
 
-      {/* Modal Empresa */}
       <Dialog open={showEmpresaModal} onOpenChange={setShowEmpresaModal}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{empresaEditando ? 'Editar Empresa' : 'Nova Empresa'}</DialogTitle>
-            <DialogDescription>
-              Preencha os dados da empresa
-            </DialogDescription>
+            <DialogDescription>Preencha os dados da empresa</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
               <Label htmlFor="nome">Nome *</Label>
-              <Input
-                id="nome"
-                value={empresaForm.nome}
-                onChange={(e) => setEmpresaForm({ ...empresaForm, nome: e.target.value })}
-                required
-              />
+              <Input id="nome" value={empresaForm.nome} onChange={(e) => setEmpresaForm({ ...empresaForm, nome: e.target.value })} required />
             </div>
             <div>
               <Label htmlFor="cnpj">CNPJ</Label>
@@ -289,21 +284,16 @@ export default function EmpresasPage() {
             <Button variant="outline" onClick={() => setShowEmpresaModal(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSalvarEmpresa}>
-              Salvar
-            </Button>
+            <Button onClick={handleSalvarEmpresa}>Salvar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Modal Unidade */}
       <Dialog open={showUnidadeModal} onOpenChange={setShowUnidadeModal}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{unidadeEditando ? 'Editar Unidade' : 'Nova Unidade'}</DialogTitle>
-            <DialogDescription>
-              {empresaSelecionada && `Empresa: ${empresaSelecionada.nome}`}
-            </DialogDescription>
+            <DialogDescription>{empresaSelecionada && `Empresa: ${empresaSelecionada.nome}`}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -320,9 +310,7 @@ export default function EmpresasPage() {
             <Button variant="outline" onClick={() => setShowUnidadeModal(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSalvarUnidade}>
-              Salvar
-            </Button>
+            <Button onClick={handleSalvarUnidade}>Salvar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
