@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -10,6 +9,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { listarTurmas, criarTurma, atualizarTurma, deletarTurma } from '@/app/actions/turmas'
 import { listarEmpresas, listarUnidades } from '@/app/actions/empresas'
+import Link from 'next/link'
+
+type Segmento = 'EDUCACAO_INFANTIL' | 'FUNDAMENTAL' | 'MEDIO' | 'OUTRO'
 
 type EmpresaRef = { id: string; nome: string }
 type UnidadeRef = { id: string; nome: string }
@@ -17,7 +19,7 @@ type UnidadeRef = { id: string; nome: string }
 interface Turma {
   id: string
   descricao: string
-  segmento: string | null
+  segmento: Segmento | null
   tipo_curso: string | null
   situacao: string
   empresa_id: string
@@ -27,69 +29,19 @@ interface Turma {
 }
 
 type EmpresaItem = { id: string; nome: string }
-type UnidadeItem = { id: string; nome: string; empresa_id?: string | null }
+type UnidadeItem = { id: string; nome: string; empresa_id?: string }
 
 type TurmaPayload = {
   descricao: string
-  segmento: string | null
-  tipo_curso: string | null
   situacao: string
   empresa_id: string
-  unidade_id: string | null
+  unidade_id?: string | null
+  segmento?: Segmento | null
+  tipo_curso?: string | null
 }
 
-function toStrId(v: unknown): string {
-  if (v === null || v === undefined) return ''
-  return String(v)
-}
-
-function toNullableStrId(v: unknown): string | null {
-  const s = toStrId(v)
-  return s ? s : null
-}
-
-function safeNome(v: unknown): string {
-  if (typeof v === 'string') return v
-  if (v === null || v === undefined) return ''
-  return String(v)
-}
-
-function normalizarEmpresaRef(raw: any): EmpresaRef | null {
-  if (!raw) return null
-  if (Array.isArray(raw)) return raw[0] ? { id: toStrId(raw[0]?.id), nome: safeNome(raw[0]?.nome) } : null
-  return { id: toStrId(raw?.id), nome: safeNome(raw?.nome) }
-}
-
-function normalizarUnidadeRef(raw: any): UnidadeRef | null {
-  if (!raw) return null
-  if (Array.isArray(raw)) return raw[0] ? { id: toStrId(raw[0]?.id), nome: safeNome(raw[0]?.nome) } : null
-  return { id: toStrId(raw?.id), nome: safeNome(raw?.nome) }
-}
-
-function normalizarTurma(raw: any): Turma {
-  return {
-    id: toStrId(raw?.id),
-    descricao: safeNome(raw?.descricao),
-    segmento: raw?.segmento ?? null,
-    tipo_curso: raw?.tipo_curso ?? null,
-    situacao: safeNome(raw?.situacao || 'ATIVA'),
-    empresa_id: toStrId(raw?.empresa_id),
-    unidade_id: toNullableStrId(raw?.unidade_id),
-    empresas: normalizarEmpresaRef(raw?.empresas),
-    unidades: normalizarUnidadeRef(raw?.unidades),
-  }
-}
-
-function formatarSegmento(segmento: string | null) {
-  if (!segmento) return 'Não informado'
-  const map: Record<string, string> = {
-    EDUCACAO_INFANTIL: 'Educação Infantil',
-    FUNDAMENTAL: 'Fundamental',
-    MEDIO: 'Médio',
-    OUTRO: 'Outro',
-  }
-  return map[segmento] || segmento
-}
+type SegmentoForm = 'none' | Segmento
+type UnidadeForm = 'none' | string
 
 export default function TurmasPage() {
   const [turmas, setTurmas] = useState<Turma[]>([])
@@ -100,7 +52,14 @@ export default function TurmasPage() {
 
   const [showModal, setShowModal] = useState(false)
   const [turmaEditando, setTurmaEditando] = useState<Turma | null>(null)
-  const [turmaForm, setTurmaForm] = useState({
+  const [turmaForm, setTurmaForm] = useState<{
+    descricao: string
+    segmento: SegmentoForm
+    tipo_curso: string
+    situacao: string
+    empresa_id: string
+    unidade_id: UnidadeForm
+  }>({
     descricao: '',
     segmento: 'none',
     tipo_curso: '',
@@ -109,47 +68,63 @@ export default function TurmasPage() {
     unidade_id: 'none',
   })
 
-  const empresaSelecionadaId = turmaForm.empresa_id || ''
   const empresasTem = empresas.length > 0
-
-  const empresasOptions = useMemo(
-    () => empresas.filter((e) => toStrId(e?.id)).map((e) => ({ id: toStrId(e.id), nome: safeNome(e.nome) })),
-    [empresas]
-  )
-
-  const unidadesOptions = useMemo(
-    () => unidades.filter((u) => toStrId(u?.id)).map((u) => ({ id: toStrId(u.id), nome: safeNome(u.nome) })),
-    [unidades]
-  )
+  const empresasOptions = empresas
+  const unidadesOptions = unidades
 
   useEffect(() => {
     carregarDados()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
-    if (empresaSelecionadaId) {
-      carregarUnidades(empresaSelecionadaId)
+    if (turmaForm.empresa_id) {
+      carregarUnidades(turmaForm.empresa_id)
     } else {
       setUnidades([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [empresaSelecionadaId])
+  }, [turmaForm.empresa_id])
+
+  function normalizarTurma(raw: any): Turma {
+    const empObj: EmpresaRef | null =
+      Array.isArray(raw?.empresas) ? (raw.empresas[0] ?? null) : (raw?.empresas ?? null)
+
+    const uniObj: UnidadeRef | null =
+      Array.isArray(raw?.unidades) ? (raw.unidades[0] ?? null) : (raw?.unidades ?? null)
+
+    const rawSegmento = raw?.segmento
+    const segmento: Segmento | null =
+      rawSegmento === 'EDUCACAO_INFANTIL' ||
+      rawSegmento === 'FUNDAMENTAL' ||
+      rawSegmento === 'MEDIO' ||
+      rawSegmento === 'OUTRO'
+        ? rawSegmento
+        : null
+
+    return {
+      id: String(raw.id),
+      descricao: raw.descricao ?? '',
+      segmento,
+      tipo_curso: raw.tipo_curso ?? null,
+      situacao: raw.situacao ?? 'ATIVA',
+      empresa_id: String(raw.empresa_id),
+      unidade_id: raw.unidade_id ?? null,
+      empresas: empObj,
+      unidades: uniObj,
+    }
+  }
 
   async function carregarDados() {
     try {
       setLoading(true)
       setError(null)
-
       const [turmasData, empresasData] = await Promise.all([listarTurmas(), listarEmpresas()])
-
-      const turmasNorm = (turmasData || []).map(normalizarTurma)
-      setTurmas(turmasNorm)
-
-      const empresasNorm = (empresasData || [])
-        .map((e: any) => ({ id: toStrId(e?.id), nome: safeNome(e?.nome) }))
-        .filter((e: EmpresaItem) => e.id && e.nome)
-      setEmpresas(empresasNorm)
+      setTurmas((turmasData || []).map(normalizarTurma))
+      setEmpresas((empresasData || []) as EmpresaItem[])
+      if (!turmaForm.empresa_id && (empresasData || []).length > 0) {
+        const firstId = String((empresasData as any[])[0]?.id || '')
+        setTurmaForm((prev) => ({ ...prev, empresa_id: firstId }))
+      }
     } catch (err) {
       console.error('Erro ao carregar dados:', err)
       setError(err instanceof Error ? err.message : 'Erro ao carregar dados')
@@ -161,10 +136,7 @@ export default function TurmasPage() {
   async function carregarUnidades(empresaId: string) {
     try {
       const dados = await listarUnidades(empresaId)
-      const unidadesNorm = (dados || [])
-        .map((u: any) => ({ id: toStrId(u?.id), nome: safeNome(u?.nome), empresa_id: toNullableStrId(u?.empresa_id) }))
-        .filter((u: UnidadeItem) => u.id && u.nome)
-      setUnidades(unidadesNorm)
+      setUnidades((dados || []) as UnidadeItem[])
     } catch (err) {
       console.error('Erro ao carregar unidades:', err)
       setUnidades([])
@@ -172,7 +144,7 @@ export default function TurmasPage() {
   }
 
   function handleNovaTurma() {
-    const firstEmpresaId = empresasOptions[0]?.id || ''
+    const firstEmpresaId = empresas[0]?.id || ''
     setTurmaEditando(null)
     setTurmaForm({
       descricao: '',
@@ -189,12 +161,12 @@ export default function TurmasPage() {
   function handleEditarTurma(turma: Turma) {
     setTurmaEditando(turma)
     setTurmaForm({
-      descricao: turma.descricao || '',
-      segmento: turma.segmento || 'none',
+      descricao: turma.descricao,
+      segmento: (turma.segmento ?? 'none') as SegmentoForm,
       tipo_curso: turma.tipo_curso || '',
-      situacao: turma.situacao || 'ATIVA',
-      empresa_id: turma.empresa_id || '',
-      unidade_id: turma.unidade_id || 'none',
+      situacao: turma.situacao,
+      empresa_id: turma.empresa_id,
+      unidade_id: (turma.unidade_id ?? 'none') as UnidadeForm,
     })
     if (turma.empresa_id) carregarUnidades(turma.empresa_id)
     setShowModal(true)
@@ -243,6 +215,17 @@ export default function TurmasPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao deletar turma')
     }
+  }
+
+  function formatarSegmento(segmento: Segmento | null) {
+    if (!segmento) return 'Não informado'
+    const map: Record<Segmento, string> = {
+      EDUCACAO_INFANTIL: 'Educação Infantil',
+      FUNDAMENTAL: 'Fundamental',
+      MEDIO: 'Médio',
+      OUTRO: 'Outro',
+    }
+    return map[segmento] || segmento
   }
 
   if (loading) {
@@ -391,7 +374,10 @@ export default function TurmasPage() {
 
             <div>
               <Label htmlFor="segmento">Segmento</Label>
-              <Select value={turmaForm.segmento} onValueChange={(value) => setTurmaForm({ ...turmaForm, segmento: String(value) })}>
+              <Select
+                value={turmaForm.segmento}
+                onValueChange={(value) => setTurmaForm({ ...turmaForm, segmento: String(value) as SegmentoForm })}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
