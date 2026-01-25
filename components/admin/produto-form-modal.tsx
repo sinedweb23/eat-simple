@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import type { ProdutoCompleto, Categoria, GrupoProduto } from '@/lib/types/database'
-import { criarVariacao, criarVariacaoValor, criarGrupoOpcional, criarOpcional, criarKitItem, listarKitItens, deletarKitItem, listarProdutos } from '@/app/actions/produtos-admin'
+import { criarVariacao, criarVariacaoValor, atualizarVariacaoValor, criarGrupoOpcional, criarOpcional, criarKitItem, listarKitItens, deletarKitItem, listarProdutos } from '@/app/actions/produtos-admin'
 import { DisponibilidadeManager } from './disponibilidade-manager'
 import { uploadImagem, deletarImagem, garantirBucketExiste } from '@/lib/storage'
 
@@ -226,9 +226,10 @@ export function ProdutoFormModal({ produto, empresaId, categorias, grupos, onSav
       const produtoSalvo = await onSave(dados)
       produtoId = produtoSalvo.id
 
-      // Criar variações e valores (apenas novas, não existentes)
+      // Criar/atualizar variações e valores
       for (const variacao of variacoes) {
         if (!variacao.id && produtoId) {
+          // Criar nova variação
           const novaVar = await criarVariacao(produtoId, {
             nome: variacao.nome,
             tipo: variacao.tipo,
@@ -241,7 +242,31 @@ export function ProdutoFormModal({ produto, empresaId, categorias, grupos, onSav
               await criarVariacaoValor(novaVar.id, {
                 valor: valor.valor,
                 label: valor.label,
-                preco_adicional: valor.preco_adicional || 0,
+                preco_adicional: valor.preco_adicional ?? 0,
+                estoque: valor.estoque,
+                ordem: valor.ordem || 0,
+              })
+            }
+          }
+        } else if (variacao.id && produtoId) {
+          // Atualizar valores existentes da variação
+          const valores = valoresVariacao[variacao.id] || []
+          for (const valor of valores) {
+            if (valor.id) {
+              // Atualizar valor existente
+              await atualizarVariacaoValor(valor.id, {
+                valor: valor.valor,
+                label: valor.label,
+                preco_adicional: valor.preco_adicional ?? 0,
+                estoque: valor.estoque,
+                ordem: valor.ordem || 0,
+              })
+            } else {
+              // Criar novo valor para variação existente
+              await criarVariacaoValor(variacao.id, {
+                valor: valor.valor,
+                label: valor.label,
+                preco_adicional: valor.preco_adicional ?? 0,
                 estoque: valor.estoque,
                 ordem: valor.ordem || 0,
               })
@@ -998,10 +1023,11 @@ export function ProdutoFormModal({ produto, empresaId, categorias, grupos, onSav
                             <Input
                               type="number"
                               step="0.01"
-                              value={valor.preco_adicional || 0}
+                              value={valor.preco_adicional ?? 0}
                               onChange={(e) => {
                                 const novosValores = [...(valoresVariacao[variacao.id || variacao.tempId] || [])]
-                                novosValores[valIdx].preco_adicional = parseFloat(e.target.value) || 0
+                                const novoValor = e.target.value === '' ? 0 : parseFloat(e.target.value)
+                                novosValores[valIdx].preco_adicional = isNaN(novoValor) ? 0 : novoValor
                                 setValoresVariacao({ ...valoresVariacao, [variacao.id || variacao.tempId]: novosValores })
                               }}
                             />

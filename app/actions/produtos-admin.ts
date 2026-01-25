@@ -353,11 +353,37 @@ export async function criarVariacaoValor(variacaoId: string, dados: { valor: str
       variacao_id: variacaoId,
       valor: dados.valor,
       label: dados.label,
-      preco_adicional: dados.preco_adicional || 0,
+      preco_adicional: dados.preco_adicional ?? 0,
       estoque: dados.estoque,
       ordem: dados.ordem || 0,
       ativo: true,
     })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data as VariacaoValor
+}
+
+export async function atualizarVariacaoValor(id: string, dados: { valor?: string; label?: string; preco_adicional?: number; estoque?: number; ordem?: number }): Promise<VariacaoValor> {
+  const ehAdmin = await verificarSeEhAdmin()
+  if (!ehAdmin) {
+    throw new Error('Não autorizado')
+  }
+
+  const supabase = await createClient()
+  const updateData: any = {}
+  
+  if (dados.valor !== undefined) updateData.valor = dados.valor
+  if (dados.label !== undefined) updateData.label = dados.label
+  if (dados.preco_adicional !== undefined) updateData.preco_adicional = dados.preco_adicional ?? 0
+  if (dados.estoque !== undefined) updateData.estoque = dados.estoque
+  if (dados.ordem !== undefined) updateData.ordem = dados.ordem
+
+  const { data, error } = await supabase
+    .from('variacao_valores')
+    .update(updateData)
+    .eq('id', id)
     .select()
     .single()
 
