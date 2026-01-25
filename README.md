@@ -859,6 +859,18 @@ Este projeto é privado e proprietário.
 
 ---
 
+## 🚀 Deploy
+
+O projeto está configurado para deploy na **Vercel**. Consulte o arquivo [`DEPLOY.md`](./DEPLOY.md) para instruções detalhadas.
+
+### Resumo Rápido
+
+1. Conecte o repositório na [Vercel](https://vercel.com)
+2. Configure as variáveis de ambiente (veja `DEPLOY.md`)
+3. Deploy automático a cada push
+
+---
+
 ## 📞 Suporte
 
 Para dúvidas ou problemas:
@@ -868,5 +880,6 @@ Para dúvidas ou problemas:
 ---
 
 **Desenvolvido com ❤️ usando Next.js, TypeScript e Supabase**
-#   l o j a - s u p a b a s e  
+#   l o j a - s u p a b a s e 
+ 
  
