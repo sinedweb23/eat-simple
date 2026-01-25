@@ -2,12 +2,30 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { listarAlunos, obterAlunoDetalhes, buscarAlunos } from '@/app/actions/alunos'
 import Link from 'next/link'
+
+interface Turma {
+  id: string
+  descricao: string
+  segmento: string | null
+  tipo_curso: string | null
+  situacao: string
+}
+
+interface Empresa {
+  id: string
+  nome: string
+}
+
+interface Unidade {
+  id: string
+  nome: string
+}
 
 interface Aluno {
   id: string
@@ -15,21 +33,9 @@ interface Aluno {
   nome: string
   situacao: string
   turma_id: string | null
-  turmas?: {
-    id: string
-    descricao: string
-    segmento: string | null
-    tipo_curso: string | null
-    situacao: string
-  } | null
-  empresas?: {
-    id: string
-    nome: string
-  } | null
-  unidades?: {
-    id: string
-    nome: string
-  } | null
+  turmas?: Turma[] | null
+  empresas?: Empresa[] | null
+  unidades?: Unidade[] | null
 }
 
 interface Responsavel {
@@ -54,13 +60,11 @@ export default function AlunosPage() {
   const [alunos, setAlunos] = useState<Aluno[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
-  // Filtros
+
   const [filtroNome, setFiltroNome] = useState('')
   const [filtroProntuario, setFiltroProntuario] = useState('')
   const [buscando, setBuscando] = useState(false)
 
-  // Modal de detalhes
   const [alunoSelecionado, setAlunoSelecionado] = useState<Aluno | null>(null)
   const [detalhes, setDetalhes] = useState<{
     aluno: any
@@ -78,7 +82,7 @@ export default function AlunosPage() {
       setLoading(true)
       setError(null)
       const dados = await listarAlunos()
-      setAlunos(dados)
+      setAlunos(dados as Aluno[])
     } catch (err) {
       console.error('Erro ao carregar alunos:', err)
       setError(err instanceof Error ? err.message : 'Erro ao carregar alunos')
@@ -91,16 +95,17 @@ export default function AlunosPage() {
     try {
       setBuscando(true)
       setError(null)
-      
+
       const filtros: any = {}
       if (filtroNome.trim()) filtros.nome = filtroNome.trim()
       if (filtroProntuario.trim()) filtros.prontuario = filtroProntuario.trim()
 
-      const dados = Object.keys(filtros).length > 0 
-        ? await buscarAlunos(filtros)
-        : await listarAlunos()
-      
-      setAlunos(dados)
+      const dados =
+        Object.keys(filtros).length > 0
+          ? await buscarAlunos(filtros)
+          : await listarAlunos()
+
+      setAlunos(dados as Aluno[])
     } catch (err) {
       console.error('Erro ao buscar alunos:', err)
       setError(err instanceof Error ? err.message : 'Erro ao buscar alunos')
@@ -117,7 +122,7 @@ export default function AlunosPage() {
       setDetalhes(null)
 
       const dados = await obterAlunoDetalhes(aluno.id)
-      setDetalhes(dados)
+      setDetalhes(dados as any)
     } catch (err) {
       console.error('Erro ao carregar detalhes:', err)
       setError(err instanceof Error ? err.message : 'Erro ao carregar detalhes')
@@ -163,16 +168,13 @@ export default function AlunosPage() {
       <div className="mb-6 flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold mb-2">Alunos</h1>
-          <p className="text-muted-foreground">
-            Lista de todos os alunos cadastrados
-          </p>
+          <p className="text-muted-foreground">Lista de todos os alunos cadastrados</p>
         </div>
         <Link href="/admin">
           <Button variant="outline">Voltar</Button>
         </Link>
       </div>
 
-      {/* Filtros */}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Buscar Alunos</CardTitle>
@@ -217,16 +219,13 @@ export default function AlunosPage() {
         </div>
       )}
 
-      {/* Lista de Alunos */}
       <Card>
         <CardHeader>
           <CardTitle>Lista de Alunos ({alunos.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {alunos.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              Nenhum aluno encontrado
-            </p>
+            <p className="text-center text-muted-foreground py-8">Nenhum aluno encontrado</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -245,27 +244,21 @@ export default function AlunosPage() {
                     <tr key={aluno.id} className="border-b hover:bg-muted/50">
                       <td className="p-2">{aluno.prontuario}</td>
                       <td className="p-2 font-medium">{aluno.nome}</td>
+                      <td className="p-2">{aluno.turmas?.[0]?.descricao || 'Sem turma'}</td>
+                      <td className="p-2">{formatarSegmento(aluno.turmas?.[0]?.segmento || null)}</td>
                       <td className="p-2">
-                        {aluno.turmas?.descricao || 'Sem turma'}
-                      </td>
-                      <td className="p-2">
-                        {formatarSegmento(aluno.turmas?.segmento || null)}
-                      </td>
-                      <td className="p-2">
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          aluno.situacao === 'ATIVO' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
+                        <span
+                          className={`px-2 py-1 rounded text-xs ${
+                            aluno.situacao === 'ATIVO'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}
+                        >
                           {aluno.situacao}
                         </span>
                       </td>
                       <td className="p-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleAbrirDetalhes(aluno)}
-                        >
+                        <Button size="sm" variant="outline" onClick={() => handleAbrirDetalhes(aluno)}>
                           Ver Detalhes
                         </Button>
                       </td>
@@ -278,16 +271,11 @@ export default function AlunosPage() {
         </CardContent>
       </Card>
 
-      {/* Modal de Detalhes */}
       <Dialog open={modalAberto} onOpenChange={setModalAberto}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              Detalhes do Aluno: {alunoSelecionado?.nome}
-            </DialogTitle>
-            <DialogDescription>
-              Prontuário: {alunoSelecionado?.prontuario}
-            </DialogDescription>
+            <DialogTitle>Detalhes do Aluno: {alunoSelecionado?.nome}</DialogTitle>
+            <DialogDescription>Prontuário: {alunoSelecionado?.prontuario}</DialogDescription>
           </DialogHeader>
 
           {carregandoDetalhes ? (
@@ -296,7 +284,6 @@ export default function AlunosPage() {
             </div>
           ) : detalhes ? (
             <div className="space-y-6">
-              {/* Informações do Aluno */}
               <Card>
                 <CardHeader>
                   <CardTitle>Informações do Aluno</CardTitle>
@@ -317,22 +304,19 @@ export default function AlunosPage() {
                     </div>
                     <div>
                       <Label className="text-xs text-muted-foreground">Empresa</Label>
-                      <p className="font-medium">
-                        {detalhes.aluno.empresas?.nome || 'Não informado'}
-                      </p>
+                      <p className="font-medium">{detalhes.aluno.empresas?.[0]?.nome || 'Não informado'}</p>
                     </div>
-                    {detalhes.aluno.unidades && (
+                    {detalhes.aluno.unidades?.[0] && (
                       <div>
                         <Label className="text-xs text-muted-foreground">Unidade</Label>
-                        <p className="font-medium">{detalhes.aluno.unidades.nome}</p>
+                        <p className="font-medium">{detalhes.aluno.unidades[0].nome}</p>
                       </div>
                     )}
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Turma e Série */}
-              {detalhes.aluno.turmas && (
+              {detalhes.aluno.turmas?.[0] && (
                 <Card>
                   <CardHeader>
                     <CardTitle>Turma e Série</CardTitle>
@@ -341,69 +325,54 @@ export default function AlunosPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label className="text-xs text-muted-foreground">Turma</Label>
-                        <p className="font-medium">{detalhes.aluno.turmas.descricao}</p>
+                        <p className="font-medium">{detalhes.aluno.turmas[0].descricao}</p>
                       </div>
                       <div>
                         <Label className="text-xs text-muted-foreground">Segmento/Série</Label>
                         <p className="font-medium">
-                          {formatarSegmento(detalhes.aluno.turmas.segmento)}
+                          {formatarSegmento(detalhes.aluno.turmas[0].segmento)}
                         </p>
                       </div>
-                      {detalhes.aluno.turmas.tipo_curso && (
+                      {detalhes.aluno.turmas[0].tipo_curso && (
                         <div>
                           <Label className="text-xs text-muted-foreground">Tipo de Curso</Label>
-                          <p className="font-medium">{detalhes.aluno.turmas.tipo_curso}</p>
+                          <p className="font-medium">{detalhes.aluno.turmas[0].tipo_curso}</p>
                         </div>
                       )}
                       <div>
                         <Label className="text-xs text-muted-foreground">Situação da Turma</Label>
-                        <p className="font-medium">{detalhes.aluno.turmas.situacao}</p>
+                        <p className="font-medium">{detalhes.aluno.turmas[0].situacao}</p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               )}
 
-              {/* Responsáveis */}
               <Card>
                 <CardHeader>
-                  <CardTitle>
-                    Responsáveis ({detalhes.responsaveis.length})
-                  </CardTitle>
+                  <CardTitle>Responsáveis ({detalhes.responsaveis.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {detalhes.responsaveis.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-4">
-                      Nenhum responsável vinculado
-                    </p>
+                    <p className="text-muted-foreground text-center py-4">Nenhum responsável vinculado</p>
                   ) : (
                     <div className="space-y-4">
                       {detalhes.responsaveis.map((relacao) => {
                         const resp = relacao.usuarios
                         return (
-                          <div
-                            key={relacao.id}
-                            className="border rounded-lg p-4 space-y-3"
-                          >
+                          <div key={relacao.id} className="border rounded-lg p-4 space-y-3">
                             <div className="flex justify-between items-start">
                               <div>
-                                <h4 className="font-semibold">
-                                  {formatarTipoResponsavel(resp.tipo)}
-                                </h4>
+                                <h4 className="font-semibold">{formatarTipoResponsavel(resp.tipo)}</h4>
                                 {!resp.ativo && (
-                                  <span className="text-xs text-destructive">
-                                    (Inativo)
-                                  </span>
+                                  <span className="text-xs text-destructive">(Inativo)</span>
                                 )}
                               </div>
                             </div>
 
-                            {/* Dados Financeiros */}
                             {(resp.tipo === 'FINANCEIRO' || resp.tipo === 'AMBOS') && (
                               <div className="space-y-2">
-                                <h5 className="text-sm font-medium text-muted-foreground">
-                                  Dados Financeiros:
-                                </h5>
+                                <h5 className="text-sm font-medium text-muted-foreground">Dados Financeiros:</h5>
                                 <div className="grid grid-cols-2 gap-2 text-sm">
                                   {resp.nome_financeiro && (
                                     <div>
@@ -433,12 +402,9 @@ export default function AlunosPage() {
                               </div>
                             )}
 
-                            {/* Dados Pedagógicos */}
                             {(resp.tipo === 'PEDAGOGICO' || resp.tipo === 'AMBOS') && (
                               <div className="space-y-2">
-                                <h5 className="text-sm font-medium text-muted-foreground">
-                                  Dados Pedagógicos:
-                                </h5>
+                                <h5 className="text-sm font-medium text-muted-foreground">Dados Pedagógicos:</h5>
                                 <div className="grid grid-cols-2 gap-2 text-sm">
                                   {resp.nome_pedagogico && (
                                     <div>
@@ -476,9 +442,7 @@ export default function AlunosPage() {
               </Card>
             </div>
           ) : (
-            <div className="py-8 text-center text-muted-foreground">
-              Erro ao carregar detalhes
-            </div>
+            <div className="py-8 text-center text-muted-foreground">Erro ao carregar detalhes</div>
           )}
         </DialogContent>
       </Dialog>
