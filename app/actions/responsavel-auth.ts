@@ -69,7 +69,7 @@ export async function solicitarPrimeiroAcesso(email: string) {
         type: 'recovery',
         email: emailValidado,
         options: {
-          redirect_to: redirectTo,
+          redirectTo: redirectTo,
         },
       })
 
@@ -149,7 +149,7 @@ export async function solicitarPrimeiroAcesso(email: string) {
             type: 'recovery',
             email: emailValidado,
             options: {
-              redirect_to: redirectTo,
+              redirectTo,
             },
           })
 
@@ -204,7 +204,7 @@ export async function solicitarPrimeiroAcesso(email: string) {
       type: 'recovery',
       email: emailValidado,
       options: {
-        redirect_to: redirectTo,
+        redirectTo,
       },
     })
 
