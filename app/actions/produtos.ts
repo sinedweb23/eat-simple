@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
-import type { ProdutoComDisponibilidade } from '@/lib/types/database'
+import type { ProdutoComDisponibilidade, ProdutoCompleto, KitItem } from '@/lib/types/database'
 
 const alunoIdSchema = z.string().uuid().optional()
 
@@ -213,13 +213,9 @@ export async function getProdutosDisponiveisParaResponsavel(): Promise<ProdutoCo
 
       console.log(`[getProdutosDisponiveisParaResponsavel] Processando produto "${produto.nome}" (ID: ${produto.id}) - ${disponibilidadesProduto.length} disponibilidade(s)`)
 
-      // Se não tem disponibilidade definida, assume "TODOS" (disponível para todos)
+      // Se não tem disponibilidade definida, produto NÃO está disponível (não aparece para ninguém)
       if (disponibilidadesProduto.length === 0) {
-        console.log(`[getProdutosDisponiveisParaResponsavel] Produto "${produto.nome}" sem disponibilidade definida - ADICIONANDO (assume TODOS)`)
-        produtosDisponiveis.push({
-          ...produto,
-          disponibilidades: []
-        })
+        console.log(`[getProdutosDisponiveisParaResponsavel] Produto "${produto.nome}" sem disponibilidade definida - NÃO DISPONÍVEL (não será exibido)`)
         produtosProcessados.add(produto.id)
         continue
       }
@@ -422,12 +418,8 @@ export async function getProdutosDisponiveis(alunoId: string): Promise<ProdutoCo
   for (const produto of produtos) {
     const disponibilidadesProduto = (disponibilidades || []).filter(d => d.produto_id === produto.id)
 
-    // Se não tem disponibilidade definida, assume "TODOS"
+    // Se não tem disponibilidade definida, produto NÃO está disponível (não aparece para ninguém)
     if (disponibilidadesProduto.length === 0) {
-      produtosDisponiveis.push({
-        ...produto,
-        disponibilidades: []
-      })
       continue
     }
 
@@ -469,4 +461,91 @@ export async function getProdutosDisponiveis(alunoId: string): Promise<ProdutoCo
   }
 
   return produtosDisponiveis
+}
+
+// Buscar produto completo com variações e opcionais para a loja
+export async function obterProdutoCompleto(id: string): Promise<ProdutoCompleto | null> {
+  const supabase = await createClient()
+  
+  // Verificar autenticação
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    throw new Error('Não autenticado')
+  }
+
+  // Buscar produto
+  const { data: produto, error: produtoError } = await supabase
+    .from('produtos')
+    .select(`
+      *,
+      categoria:categorias(*),
+      grupo:grupos_produtos(*)
+    `)
+    .eq('id', id)
+    .eq('ativo', true)
+    .single()
+
+  if (produtoError || !produto) {
+    return null
+  }
+
+  // Buscar variações
+  const { data: variacoes } = await supabase
+    .from('variacoes')
+    .select(`
+      *,
+      valores:variacao_valores(*)
+    `)
+    .eq('produto_id', id)
+    .order('ordem', { ascending: true })
+
+  // Buscar grupos de opcionais
+  const { data: gruposOpcionais } = await supabase
+    .from('grupos_opcionais')
+    .select(`
+      *,
+      opcionais:opcionais(*)
+    `)
+    .eq('produto_id', id)
+    .order('ordem', { ascending: true })
+
+  // Buscar disponibilidades
+  const { data: disponibilidades } = await supabase
+    .from('produto_disponibilidade')
+    .select('*')
+    .eq('produto_id', id)
+
+  // Filtrar valores de variação ativos manualmente
+  const variacoesComValores = (variacoes || []).map(v => ({
+    ...v,
+    valores: (v.valores || []).filter((val: any) => val.ativo).sort((a: any, b: any) => a.ordem - b.ordem)
+  })).filter(v => v.valores.length > 0)
+
+  // Filtrar opcionais ativos manualmente
+  const gruposComOpcionais = (gruposOpcionais || []).map(g => ({
+    ...g,
+    opcionais: (g.opcionais || []).filter((o: any) => o.ativo).sort((a: any, b: any) => a.ordem - b.ordem)
+  })).filter(g => g.opcionais.length > 0)
+
+  // Buscar itens do kit (se for kit)
+  let kitsItens: KitItem[] = []
+  if (produto.tipo === 'KIT') {
+    const { data: itens } = await supabase
+      .from('kits_itens')
+      .select(`
+        *,
+        produto:produtos!kits_itens_produto_id_fkey(*)
+      `)
+      .eq('kit_produto_id', id)
+      .order('ordem', { ascending: true })
+    kitsItens = (itens || []) as KitItem[]
+  }
+
+  return {
+    ...produto,
+    variacoes: variacoesComValores,
+    grupos_opcionais: gruposComOpcionais,
+    disponibilidades: disponibilidades || [],
+    kits_itens: kitsItens,
+  } as ProdutoCompleto
 }

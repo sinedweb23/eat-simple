@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { verificarSeEhAdmin } from './admin'
 import { z } from 'zod'
-import type { ProdutoCompleto, Categoria, GrupoProduto, Variacao, VariacaoValor, GrupoOpcional, Opcional } from '@/lib/types/database'
+import type { ProdutoCompleto, Categoria, GrupoProduto, Variacao, VariacaoValor, GrupoOpcional, Opcional, KitItem } from '@/lib/types/database'
 
 // Schemas de validação
 const categoriaSchema = z.object({
@@ -38,6 +38,19 @@ const produtoSchema = z.object({
   sku: z.string().optional().nullable(),
   imagem_url: z.string().url().optional().nullable(),
   ordem: z.number().default(0),
+  // Campos fiscais
+  ncm: z.string().optional().nullable(),
+  cfop: z.string().optional().nullable(),
+  unidade_comercial: z.string().optional().nullable(),
+  cst_icms: z.string().optional().nullable(),
+  csosn: z.string().optional().nullable(),
+  icms_origem: z.string().optional().nullable(),
+  aliq_icms: z.number().optional().nullable(),
+  cst_pis: z.string().optional().nullable(),
+  aliq_pis: z.number().optional().nullable(),
+  cst_cofins: z.string().optional().nullable(),
+  aliq_cofins: z.number().optional().nullable(),
+  cbenef: z.string().optional().nullable(),
 })
 
 // Categorias
@@ -220,11 +233,26 @@ export async function obterProduto(id: string): Promise<ProdutoCompleto | null> 
     .select('*')
     .eq('produto_id', id)
 
+  // Buscar itens do kit (se for kit)
+  let kitsItens: KitItem[] = []
+  if (produto.tipo === 'KIT') {
+    const { data: itens } = await supabase
+      .from('kits_itens')
+      .select(`
+        *,
+        produto:produtos!kits_itens_produto_id_fkey(*)
+      `)
+      .eq('kit_produto_id', id)
+      .order('ordem', { ascending: true })
+    kitsItens = (itens || []) as KitItem[]
+  }
+
   return {
     ...produto,
     variacoes: variacoes || [],
     grupos_opcionais: gruposOpcionais || [],
     disponibilidades: disponibilidades || [],
+    kits_itens: kitsItens,
   } as ProdutoCompleto
 }
 
@@ -462,6 +490,125 @@ export async function deletarDisponibilidade(id: string) {
   const supabase = await createClient()
   const { error } = await supabase
     .from('produto_disponibilidade')
+    .delete()
+    .eq('id', id)
+
+  if (error) throw error
+}
+
+// Actions para gerenciar itens do kit
+export async function criarKitItem(kitProdutoId: string, produtoId: string, quantidade: number, ordem?: number): Promise<KitItem> {
+  try {
+    const ehAdmin = await verificarSeEhAdmin()
+    if (!ehAdmin) {
+      throw new Error('Não autorizado')
+    }
+
+    const supabase = await createClient()
+
+    // Verificar se o produto é um kit
+    const { data: kit, error: kitError } = await supabase
+      .from('produtos')
+      .select('tipo')
+      .eq('id', kitProdutoId)
+      .single()
+
+    if (kitError) {
+      console.error('[criarKitItem] Erro ao verificar kit:', kitError)
+      throw new Error(`Erro ao verificar kit: ${kitError.message}`)
+    }
+
+    if (!kit || kit.tipo !== 'KIT') {
+      throw new Error('Produto não é um kit')
+    }
+
+    // Verificar se o produto a ser adicionado não é o próprio kit
+    if (kitProdutoId === produtoId) {
+      throw new Error('Um kit não pode conter a si mesmo')
+    }
+
+    // Verificar se o produto a ser adicionado existe e não é um kit
+    const { data: produto, error: produtoError } = await supabase
+      .from('produtos')
+      .select('id, tipo')
+      .eq('id', produtoId)
+      .single()
+
+    if (produtoError) {
+      console.error('[criarKitItem] Erro ao verificar produto:', produtoError)
+      throw new Error(`Erro ao verificar produto: ${produtoError.message}`)
+    }
+
+    if (!produto) {
+      throw new Error('Produto não encontrado')
+    }
+
+    if (produto.tipo === 'KIT') {
+      throw new Error('Não é possível adicionar um kit dentro de outro kit')
+    }
+
+    const { data, error } = await supabase
+      .from('kits_itens')
+      .insert({
+        kit_produto_id: kitProdutoId,
+        produto_id: produtoId,
+        quantidade,
+        ordem: ordem || 0,
+      })
+      .select(`
+        *,
+        produto:produtos!kits_itens_produto_id_fkey(*)
+      `)
+      .single()
+
+    if (error) {
+      console.error('[criarKitItem] Erro ao inserir item do kit:', JSON.stringify(error, null, 2))
+      const errorMessage = error.message || error.details || error.hint || 'Erro desconhecido ao adicionar produto ao kit'
+      throw new Error(`Erro ao adicionar produto ao kit: ${errorMessage}`)
+    }
+
+    if (!data) {
+      throw new Error('Item do kit não foi criado')
+    }
+
+    return data as KitItem
+  } catch (error: any) {
+    console.error('[criarKitItem] Erro completo:', error)
+    throw error instanceof Error ? error : new Error(String(error))
+  }
+}
+
+export async function listarKitItens(kitProdutoId: string): Promise<KitItem[]> {
+  const ehAdmin = await verificarSeEhAdmin()
+  if (!ehAdmin) {
+    throw new Error('Não autorizado')
+  }
+
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('kits_itens')
+    .select(`
+      *,
+      produto:produtos!kits_itens_produto_id_fkey(*)
+    `)
+    .eq('kit_produto_id', kitProdutoId)
+    .order('ordem', { ascending: true })
+
+  if (error) throw error
+  return (data || []) as KitItem[]
+}
+
+export async function deletarKitItem(id: string): Promise<void> {
+  const ehAdmin = await verificarSeEhAdmin()
+  if (!ehAdmin) {
+    throw new Error('Não autorizado')
+  }
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('kits_itens')
     .delete()
     .eq('id', id)
 

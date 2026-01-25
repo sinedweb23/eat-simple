@@ -193,6 +193,35 @@ export default function CarrinhoPage() {
                               {item.produto.descricao}
                             </p>
                           )}
+                          {/* Variações selecionadas */}
+                          {item.variacoesSelecionadas && Object.keys(item.variacoesSelecionadas).length > 0 && (
+                            <div className="text-sm text-muted-foreground mb-2">
+                              {Object.entries(item.variacoesSelecionadas).map(([nome, valor]) => (
+                                <div key={nome} className="inline-block mr-2">
+                                  <span className="font-medium">{nome}:</span> {valor}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {/* Opcionais selecionados */}
+                          {item.opcionaisSelecionados && item.opcionaisSelecionados.length > 0 && (
+                            <div className="text-sm text-muted-foreground mb-2">
+                              <span className="font-medium">Adicionais:</span>
+                              {item.opcionaisSelecionados.map((opcional, idx) => (
+                                <span key={opcional.opcional_id} className="ml-1">
+                                  {opcional.nome}
+                                  {opcional.quantidade > 1 && ` (${opcional.quantidade}x)`}
+                                  {idx < item.opcionaisSelecionados!.length - 1 && ', '}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {/* Indicador de Kit */}
+                          {item.produto.tipo === 'KIT' && (
+                            <div className="text-sm text-amber-600 bg-amber-50 px-2 py-1 rounded mt-2">
+                              📦 Kit - Será expandido na nota fiscal
+                            </div>
+                          )}
                           <div className="flex items-center gap-4 mt-3">
                             <div className="flex items-center gap-2 border rounded-md">
                               <Button

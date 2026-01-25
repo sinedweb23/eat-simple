@@ -260,26 +260,11 @@ export default function LojaPage() {
                     </div>
                   )}
                   
-                  {alunos.length > 0 ? (
-                    <Select
-                      onValueChange={(alunoId) => adicionarAoCarrinho(produto, alunoId)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Selecione o aluno" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {alunos.map((aluno) => (
-                          <SelectItem key={aluno.id} value={aluno.id}>
-                            {aluno.nome} ({aluno.prontuario})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Button className="w-full" disabled>
-                      Nenhum aluno vinculado
+                  <Link href={`/loja/produto/${produto.id}`} className="w-full">
+                    <Button className="w-full">
+                      Ver Detalhes
                     </Button>
-                  )}
+                  </Link>
                 </CardContent>
               </Card>
             ))}

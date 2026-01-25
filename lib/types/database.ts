@@ -89,6 +89,19 @@ export interface Produto {
   permitir_pix: boolean
   permitir_cartao: boolean
   ativo: boolean
+  // Campos fiscais para NF-e
+  ncm?: string | null
+  cfop?: string | null
+  unidade_comercial?: string | null
+  cst_icms?: string | null
+  csosn?: string | null
+  icms_origem?: string | null
+  aliq_icms?: number | null
+  cst_pis?: string | null
+  aliq_pis?: number | null
+  cst_cofins?: string | null
+  aliq_cofins?: number | null
+  cbenef?: string | null
   created_at: string
   updated_at: string
 }
@@ -191,6 +204,16 @@ export interface Opcional {
   updated_at: string
 }
 
+export interface KitItem {
+  id: string
+  kit_produto_id: string
+  produto_id: string
+  quantidade: number
+  ordem: number
+  created_at: string
+  produto?: Produto
+}
+
 export interface ProdutoCompleto extends Produto {
   categoria_id: string | null
   grupo_id: string | null
@@ -202,4 +225,5 @@ export interface ProdutoCompleto extends Produto {
   variacoes?: Variacao[]
   grupos_opcionais?: GrupoOpcional[]
   disponibilidades?: ProdutoDisponibilidade[]
+  kits_itens?: KitItem[]
 }

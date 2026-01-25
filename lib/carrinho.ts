@@ -14,6 +14,8 @@ export interface ItemCarrinho {
   alunoId: string
   alunoNome: string
   quantidade: number
+  variacoesSelecionadas?: Record<string, string> // { "Tamanho": "M", "Cor": "Vermelho" }
+  opcionaisSelecionados?: Array<{ opcional_id: string; nome: string; preco: number; quantidade: number }>
 }
 
 const CARRINHO_KEY = 'loja_carrinho'
